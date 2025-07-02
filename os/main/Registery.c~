@@ -1,0 +1,91 @@
+#include "Registery.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+static Registry* registry_head = NULL;
+
+void registry_init(void) {
+    registry_head = NULL;
+}
+
+void registry_free(void) {
+    Registry* current = registry_head;
+    while (current) {
+        Registry* next = current->next;
+        free(current->name);
+        free(current);
+        current = next;
+    }
+    registry_head = NULL;
+}
+
+Registry* registry_find(const char* name) {
+    Registry* current = registry_head;
+    while (current) {
+        if (strcmp(current->name, name) == 0)
+            return current;
+        current = current->next;
+    }
+    return NULL;
+}
+
+bool internal_register(const char* name, Registry_Type type, void (*on_change)(const char*)) {
+    if (registry_find(name)) return false;
+
+    Registry* entry = calloc(1, sizeof(Registry));
+    if (!entry) return false;
+
+    entry->name = strdup(name);
+    entry->type = type;
+    entry->on_change = on_change;
+    entry->next = registry_head;
+    registry_head = entry;
+    return true;
+}
+
+#define IMPL_REGISTER(type, field, enum_tag)                            \
+bool registry_register_##type(const char* name, typeof(((Registry*)0)->value.field) initial, void (*on_change)(const char*)) { \
+    if (!internal_register(name, enum_tag, on_change)) return false;   \
+    Registry* r = registry_find(name);                                 \
+    if (!r) return false;                                              \
+    r->value.field = initial;                                          \
+    return true;                                                       \
+}
+
+IMPL_REGISTER(bool, b, Registry_Bool)
+IMPL_REGISTER(int, i, Registry_Int)
+IMPL_REGISTER(float, f, Registry_Float)
+
+#define IMPL_SET(type, field, enum_tag)                          \
+bool registry_set_##type(const char* name, typeof(((Registry*)0)->value.field) val) { \
+    Registry* r = registry_find(name);                           \
+    if (!r || r->type != enum_tag) return false;                 \
+    r->value.field = val;                                       \
+    if (r->on_change) r->on_change(name);                        \
+    return true;                                                 \
+}
+
+IMPL_SET(bool, b, Registry_Bool)
+IMPL_SET(int, i, Registry_Int)
+IMPL_SET(float, f, Registry_Float)
+
+#define IMPL_GET(type, field, enum_tag)                          \
+bool registry_get_##type(const char* name, typeof(((Registry*)0)->value.field)* out) { \
+    Registry* r = registry_find(name);                           \
+    if (!r || r->type != enum_tag || !out) return false;         \
+    *out = r->value.field;                                       \
+    return true;                                                 \
+}
+
+IMPL_GET(bool, b, Registry_Bool)
+IMPL_GET(int, i, Registry_Int)
+IMPL_GET(float, f, Registry_Float)
+
+void registry_for_each(void (*callback)(Registry*)) {
+    Registry* current = registry_head;
+    while (current) {
+        callback(current);
+        current = current->next;
+    }
+}
