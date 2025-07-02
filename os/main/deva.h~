@@ -1,0 +1,7 @@
+#pragma once
+
+// Deva Module IDs
+#define DEVA_EMPTY      0x000000
+#define DEVA_SPEAKER    0x000001
+#define DEVA_MICROPHONE 0x000002
+#define DEVA_STORAGE    0x000003
